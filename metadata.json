@@ -1,0 +1,6 @@
+{
+  "name": "Carol Rosa TikTokShop Editor",
+  "description": "Aplicativo web exclusivo para criação e combinação automatizada de múltiplos vídeos para TikTok Shop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

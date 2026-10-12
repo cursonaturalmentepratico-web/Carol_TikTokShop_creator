@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="128" fill="#111111"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#E8A0BF" stroke-opacity="0.25" stroke-width="4"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#E8A0BF" stroke-opacity="0.4" stroke-width="2" stroke-dasharray="8 8"/>
+  <g fill="none" stroke="#E8A0BF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Stylized Camera / Film Strip / Shop Gem symbol -->
+    <path d="M190 170 h132 a30 30 0 0 1 30 30 v112 a30 30 0 0 1 -30 30 h-132 a30 30 0 0 1 -30 -30 v-112 a30 30 0 0 1 30 -30 Z" />
+    <polygon points="236,220 292,256 236,292" fill="#E8A0BF" stroke="#E8A0BF" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M352 210 l45 -25 v142 l-45 -25" fill="#E8A0BF" fill-opacity="0.15" />
+    <path d="M160 210 h-12 v92 h12" />
+  </g>
+  <text x="256" y="420" font-family="'Plus Jakarta Sans', -apple-system, sans-serif" font-size="28" font-weight="700" letter-spacing="4" fill="#FFFFFF" text-anchor="middle">CAROL ROSA</text>
+  <text x="256" y="448" font-family="'Plus Jakarta Sans', -apple-system, sans-serif" font-size="16" font-weight="500" letter-spacing="6" fill="#E8A0BF" text-anchor="middle">TIKTOK SHOP</text>
+</svg>
