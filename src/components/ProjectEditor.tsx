@@ -23,6 +23,7 @@ interface ProjectEditorProps {
   onPreviewClip: (clip: VideoClip) => void;
   onViewMatrix: () => void;
   onRequestGenerate: () => void;
+  isSubmittingRender?: boolean;
 }
 
 export const ProjectEditor: React.FC<ProjectEditorProps> = ({
@@ -33,6 +34,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
   onPreviewClip,
   onViewMatrix,
   onRequestGenerate,
+  isSubmittingRender = false,
 }) => {
   const [saveToast, setSaveToast] = useState(false);
 
@@ -214,7 +216,7 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
 
           <button
             type="button"
-            disabled={!canGenerate}
+            disabled={!canGenerate || isSubmittingRender}
             onClick={onRequestGenerate}
             className={`w-full flex items-center justify-center gap-3 rounded-2xl py-4 px-6 text-base font-extrabold tracking-wide transition-all duration-200 cursor-pointer shadow-lg ${
               canGenerate
@@ -223,7 +225,9 @@ export const ProjectEditor: React.FC<ProjectEditorProps> = ({
             }`}
           >
             <Sparkles className="w-5 h-5 fill-current" />
-            <span>Gerar combinações</span>
+            <span>
+              {isSubmittingRender ? 'Enviando vídeos...' : 'Gerar combinações'}
+            </span>
           </button>
 
           {!canGenerate && (
