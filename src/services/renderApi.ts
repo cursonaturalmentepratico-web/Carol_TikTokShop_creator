@@ -244,7 +244,7 @@ export const RenderApi = {
   },
 
   async preview(projectId: string, filename: string): Promise<string> {
-    if (!/^combinacao-\\d{3}\\.mp4$/.test(filename)) {
+    if (!/^combinacao-\d{3}\.mp4$/.test(filename)) {
       throw new Error('Nome de vídeo inválido.');
     }
 
