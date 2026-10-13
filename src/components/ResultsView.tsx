@@ -85,8 +85,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     }
 
     try {
-      setDownloadNotice(`Preparando download do vídeo #${combo.combinationNumber}...`);
-      await RenderApi.download(project.id, filename);
+      setDownloadNotice(`Iniciando download do vídeo #${combo.combinationNumber}...`);
+
+      await RenderApi.download(project.id, filename, (percent) => {
+        setDownloadNotice(
+          percent === null
+            ? `Baixando vídeo #${combo.combinationNumber}...`
+            : `Baixando vídeo #${combo.combinationNumber}: ${percent}%`
+        );
+      });
+
       setDownloadNotice(null);
     } catch (error) {
       setDownloadNotice(

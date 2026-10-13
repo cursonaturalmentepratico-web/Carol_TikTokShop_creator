@@ -126,29 +126,120 @@ export const RenderApi = {
 
   async download(
     projectId: string,
-    filename: string
+    filename: string,
+    onProgress?: (percent: number | null) => void
   ): Promise<void> {
-    if (!/^combinacao-\d{3}\.mp4$/.test(filename)) {
+    if (!/^combinacao-\\d{3}\\.mp4$/.test(filename)) {
       throw new Error('Nome de vídeo inválido.');
     }
 
-    const response = await authenticatedRequest(
-      `/projects/${projectId}/outputs/${filename}`
-    );
+    type WritableFile = {
+      write(data: Uint8Array): Promise<void>;
+      close(): Promise<void>;
+      abort(): Promise<void>;
+    };
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    type FileHandle = {
+      createWritable(): Promise<WritableFile>;
+    };
+
+    const picker = (
+      window as Window & {
+        showSaveFilePicker?: (options: {
+          suggestedName: string;
+          types: Array<{
+            description: string;
+            accept: Record<string, string[]>;
+          }>;
+        }) => Promise<FileHandle>;
+      }
+    ).showSaveFilePicker;
+
+    let writable: WritableFile | null = null;
+
+    if (typeof picker === 'function') {
+      try {
+        const handle = await picker({
+          suggestedName: filename,
+          types: [{
+            description: 'Vídeo MP4',
+            accept: { 'video/mp4': ['.mp4'] },
+          }],
+        });
+
+        writable = await handle.createWritable();
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+        throw error;
+      }
+    }
+
+    let completed = false;
 
     try {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
+      const response = await authenticatedRequest(
+        `/projects/${projectId}/outputs/${filename}`
+      );
 
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const total = Number(response.headers.get('Content-Length')) || 0;
+
+      if (!response.body) {
+        throw new Error('O navegador não disponibilizou o streaming do vídeo.');
+      }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        if (writable) {
+          await writable.write(value);
+        } else {
+          chunks.push(value);
+        }
+
+        received += value.byteLength;
+
+        onProgress?.(total ? Math.min(100, Math.round(received * 100 / total)) : null);
+      }
+
+      if (total && received !== total) {
+        throw new Error('Download incompleto. Tente novamente.');
+      }
+
+      if (writable) {
+        await writable.close();
+      } else {
+        const blob = new Blob(chunks as BlobPart[], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+
+        try {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        } finally {
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
+      }
+
+      completed = true;
+      onProgress?.(100);
     } finally {
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      if (!completed && writable) {
+        try {
+          await writable.abort();
+        } catch {
+          // A gravação já pode ter sido encerrada pelo navegador.
+        }
+      }
     }
   },
 
