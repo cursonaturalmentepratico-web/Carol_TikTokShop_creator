@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Project, GeneratedCombination } from '../types';
 import { calculateTimeRemaining } from '../utils/videoUtils';
+import { RenderApi, RenderOutput } from '../services/renderApi';
 
 interface ResultsViewProps {
   project: Project;
@@ -35,6 +36,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   );
 
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [serverFiles, setServerFiles] = useState<RenderOutput[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(true);
 
   // Update countdown every second based on real server expiration date
   useEffect(() => {
@@ -48,26 +51,48 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   const combinations = project.results || [];
 
-  const handleDownloadSingle = (combo: GeneratedCombination) => {
-    if (combo.videoUrl) {
-      // Direct download if URL exists
-      const link = document.createElement('a');
-      link.href = combo.videoUrl;
-      link.download = `${project.title.replace(/\s+/g, '_')}_combo_${combo.combinationNumber}.mp4`;
-      link.click();
-    } else {
-      setDownloadNotice(
-        `O download direto do vídeo #${combo.combinationNumber} será acionado assim que o renderizador FFmpeg na VPS concluir a geração dos arquivos físicos.`
-      );
-      setTimeout(() => setDownloadNotice(null), 5000);
-    }
-  };
+  useEffect(() => {
+    let active = true;
 
-  const handleDownloadAll = () => {
-    setDownloadNotice(
-      'O pacote ZIP com todos os vídeos gerados será baixado diretamente da VPS assim que o processador FFmpeg for conectado à URL de produção.'
-    );
-    setTimeout(() => setDownloadNotice(null), 5000);
+    setLoadingFiles(true);
+
+    RenderApi.outputs(project.id)
+      .then((result) => {
+        if (active) setServerFiles(result.files);
+      })
+      .catch((error) => {
+        if (active) {
+          setDownloadNotice(
+            error instanceof Error ? error.message : 'Falha ao consultar vídeos.'
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingFiles(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [project.id]);
+
+  const handleDownloadSingle = async (combo: GeneratedCombination) => {
+    const filename = `combinacao-${String(combo.combinationNumber).padStart(3, '0')}.mp4`;
+
+    if (!serverFiles.some((file) => file.filename === filename)) {
+      setDownloadNotice('Este vídeo não está disponível para download.');
+      return;
+    }
+
+    try {
+      setDownloadNotice(`Preparando download do vídeo #${combo.combinationNumber}...`);
+      await RenderApi.download(project.id, filename);
+      setDownloadNotice(null);
+    } catch (error) {
+      setDownloadNotice(
+        error instanceof Error ? error.message : 'Falha ao baixar vídeo.'
+      );
+    }
   };
 
   return (
@@ -107,14 +132,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             </p>
           </div>
 
-          {/* Download All Button */}
-          <button
-            onClick={handleDownloadAll}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-[#E8A0BF] px-5 py-3.5 text-xs sm:text-sm font-bold text-[#111111] hover:bg-[#df8fb1] active:scale-95 transition-all shadow-md shrink-0 cursor-pointer"
-          >
-            <FileArchive className="w-4 h-4" />
-            <span>Baixar todos os vídeos (.ZIP)</span>
-          </button>
+          <span className="text-xs text-[#A0A0A0]">
+            {loadingFiles ? 'Consultando arquivos...' : `${serverFiles.length} MP4 disponível(is)`}
+          </span>
         </div>
       </div>
 
@@ -247,7 +267,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleDownloadSingle(combo)}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-[#333333] bg-[#1d1d1d] py-2.5 px-3 text-xs font-semibold text-[#F5F5F5] hover:border-[#E8A0BF] hover:text-[#E8A0BF] active:scale-95 transition-all"
+                  disabled={
+                    loadingFiles ||
+                    !serverFiles.some(
+                      (file) =>
+                        file.filename ===
+                        `combinacao-${String(combo.combinationNumber).padStart(3, '0')}.mp4`
+                    )
+                  }
+                  className="flex-1 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 rounded-xl border border-[#333333] bg-[#1d1d1d] py-2.5 px-3 text-xs font-semibold text-[#F5F5F5] hover:border-[#E8A0BF] hover:text-[#E8A0BF] active:scale-95 transition-all"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Baixar MP4</span>

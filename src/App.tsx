@@ -18,6 +18,9 @@ import { BackendStatusModal } from './components/BackendStatusModal';
 import { SettingsModal } from './components/SettingsModal';
 import { Project, VideoClip, GeneratedCombination } from './types';
 import { buildCombinationsMatrix } from './utils/videoUtils';
+import { submitProjectForRendering } from './services/renderWorkflow';
+import { waitForRenderCompletion } from './services/renderPolling';
+import { RenderApi } from './services/renderApi';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -31,6 +34,8 @@ export default function App() {
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [isSubmittingRender, setIsSubmittingRender] = useState(false);
+  const [renderMessage, setRenderMessage] = useState<string | null>(null);
 
   // Modals state
   const [previewClip, setPreviewClip] = useState<VideoClip | null>(null);
@@ -179,34 +184,79 @@ export default function App() {
     }
   };
 
-  const handleRequestGenerate = () => {
-    if (!activeProject) return;
+  const handleRequestGenerate = async () => {
+    if (!activeProject || isSubmittingRender) return;
 
-    // Build combinations structure in-memory for review
-    const matrix = buildCombinationsMatrix(
-      activeProject.hooks,
-      activeProject.developments,
-      activeProject.ctas
-    );
+    const project = activeProject;
 
-    // Set server expiration timestamp (2 hours retention policy)
-    const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    setGlobalError(null);
+    setIsSubmittingRender(true);
+    setRenderMessage('Preparando os vídeos para envio...');
 
-    const updated: Project = {
-      ...activeProject,
-      results: matrix,
-      totalCombinations: matrix.length,
-      expiresAt,
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const matrix = buildCombinationsMatrix(
+        project.hooks,
+        project.developments,
+        project.ctas
+      );
 
-    setActiveProject(updated);
+      await ProjectService.updateProjectName(
+        project.id,
+        project.title,
+        session!.user.id
+      );
 
-    // Save project name
-    handleSaveProject();
+      await submitProjectForRendering(project, (progress) => {
+        setRenderMessage(progress.message);
+      });
 
-    // Show explicit backend status modal explaining VPS FFmpeg pipeline
-    setShowBackendModal(true);
+      setActiveProject({
+        ...project,
+        results: matrix,
+        totalCombinations: matrix.length,
+        updatedAt: new Date().toISOString(),
+      });
+
+      setRenderMessage(
+        'Vídeos enviados! Aguardando processamento na VPS...'
+      );
+
+      await waitForRenderCompletion(project.id, (job) => {
+        if (job.status === 'pending') {
+          setRenderMessage('Aguardando sua vez na fila de processamento...');
+        } else if (job.status === 'running') {
+          setRenderMessage('FFmpeg está gerando suas combinações...');
+        }
+      });
+
+      const outputs = await RenderApi.outputs(project.id);
+
+      if (outputs.files.length === 0) {
+        throw new Error('Processamento concluído, mas nenhum vídeo foi encontrado.');
+      }
+
+      setActiveProject({
+        ...project,
+        results: matrix,
+        totalCombinations: matrix.length,
+        expiresAt: outputs.expiresAt,
+        status: 'ready',
+        updatedAt: new Date().toISOString(),
+      });
+
+      setCurrentView('results');
+      setRenderMessage(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível iniciar a renderização.';
+
+      setGlobalError(message);
+      setRenderMessage(null);
+    } finally {
+      setIsSubmittingRender(false);
+    }
   };
 
   const handleOpenResultsView = () => {
@@ -288,6 +338,17 @@ export default function App() {
         </div>
       )}
 
+      {renderMessage && (
+        <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 pt-4">
+          <div className="rounded-2xl border border-[#E8A0BF]/40 bg-[#E8A0BF]/10 p-4 text-sm text-[#E8A0BF] flex items-center gap-3">
+            {isSubmittingRender && (
+              <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+            )}
+            <span>{renderMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Main View Container */}
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 pb-20">
         {currentView === 'home' && (
@@ -309,6 +370,7 @@ export default function App() {
             onPreviewClip={(clip) => setPreviewClip(clip)}
             onViewMatrix={() => setShowMatrixModal(true)}
             onRequestGenerate={handleRequestGenerate}
+            isSubmittingRender={isSubmittingRender}
           />
         )}
 
