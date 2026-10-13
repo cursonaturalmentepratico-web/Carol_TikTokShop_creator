@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Clock,
   Download,
+  Trash2,
   Play,
   ArrowLeft,
   AlertTriangle,
@@ -38,6 +39,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [serverFiles, setServerFiles] = useState<RenderOutput[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
+  const [isDeletingVideos, setIsDeletingVideos] = useState(false);
 
   // Update countdown every second based on real server expiration date
   useEffect(() => {
@@ -103,6 +105,27 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     };
   }, [project.id]);
 
+  const handleDeleteVideos = async () => {
+    if (!window.confirm(
+      'Excluir permanentemente todos os vídeos MP4 deste projeto? Esta ação não pode ser desfeita.'
+    )) return;
+
+    setIsDeletingVideos(true);
+    setDownloadNotice(null);
+
+    try {
+      await RenderApi.deleteVideos(project.id);
+      setServerFiles([]);
+      setDownloadNotice('Vídeos excluídos com sucesso.');
+    } catch (error) {
+      setDownloadNotice(
+        error instanceof Error ? error.message : 'Falha ao excluir vídeos.'
+      );
+    } finally {
+      setIsDeletingVideos(false);
+    }
+  };
+
   const handleDownloadSingle = async (combo: GeneratedCombination) => {
     const filename = `combinacao-${String(combo.combinationNumber).padStart(3, '0')}.mp4`;
 
@@ -147,6 +170,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           <span className="text-xs font-semibold text-white">Central de Entrega de Vídeos</span>
         </div>
       </div>
+
+      {serverFiles.length > 0 && !loadingFiles && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleDeleteVideos}
+            disabled={isDeletingVideos}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-50 transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+            {isDeletingVideos ? 'Excluindo vídeos...' : 'Excluir vídeos'}
+          </button>
+        </div>
+      )}
 
       {/* Project Title Banner */}
       <div className="rounded-3xl border border-[#2a2a2a] bg-[#161616] p-5 sm:p-6 shadow-xl">
