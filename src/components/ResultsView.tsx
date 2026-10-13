@@ -49,7 +49,34 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     return () => clearInterval(timer);
   }, [defaultExpiry]);
 
-  const combinations = project.results || [];
+  const savedCombinations = project.results || [];
+
+  // Recupera os cartões dos MP4 existentes mesmo após reabrir o aplicativo.
+  const combinations: GeneratedCombination[] = serverFiles
+    .filter((file) => /^combinacao-\d{3}\.mp4$/.test(file.filename))
+    .map((file) => {
+      const number = Number(file.filename.match(/\d{3}/)?.[0]);
+      const saved = savedCombinations.find(
+        (combo) => combo.combinationNumber === number
+      );
+
+      return saved ?? {
+        id: file.filename,
+        combinationNumber: number,
+        hookName: 'Informação não armazenada',
+        hookClipId: '',
+        developmentName: 'Informação não armazenada',
+        developmentClipId: '',
+        ctaName: 'Informação não armazenada',
+        ctaClipId: '',
+        estimatedDuration: 0,
+        estimatedDurationFormatted: 'Não informada',
+        fileSizeFormatted: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        resolution: 'Original',
+        status: 'ready' as const,
+      };
+    })
+    .sort((a, b) => a.combinationNumber - b.combinationNumber);
 
   useEffect(() => {
     let active = true;

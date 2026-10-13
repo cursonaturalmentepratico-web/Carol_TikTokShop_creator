@@ -129,7 +129,7 @@ export const RenderApi = {
     filename: string,
     onProgress?: (percent: number | null) => void
   ): Promise<void> {
-    if (!/^combinacao-\\d{3}\\.mp4$/.test(filename)) {
+    if (!/^combinacao-\d{3}\.mp4$/.test(filename)) {
       throw new Error('Nome de vídeo inválido.');
     }
 
@@ -159,7 +159,7 @@ export const RenderApi = {
 
     if (typeof picker === 'function') {
       try {
-        const handle = await picker({
+        const handle = await picker.call(window, {
           suggestedName: filename,
           types: [{
             description: 'Vídeo MP4',

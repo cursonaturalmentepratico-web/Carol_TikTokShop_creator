@@ -138,10 +138,61 @@ export default function App() {
     }
   };
 
-  const handleOpenProject = (project: Project) => {
-    // Preserve any active in-memory clips if they belong to this project
+  const handleOpenProject = async (project: Project) => {
+    setGlobalError(null);
     setActiveProject(project);
-    setCurrentView('editor');
+    setRenderMessage('Consultando vídeos disponíveis na VPS...');
+
+    try {
+      const job = await RenderApi.status(project.id);
+
+      if (job.status === 'completed') {
+        const outputs = await RenderApi.outputs(project.id);
+
+        if (outputs.files.length > 0) {
+          setActiveProject({
+            ...project,
+            status: 'ready',
+            expiresAt: outputs.expiresAt,
+          });
+          setCurrentView('results');
+          return;
+        }
+
+        setGlobalError('A renderização foi concluída, mas nenhum vídeo está disponível.');
+        return;
+      }
+
+      if (job.status === 'not_started') {
+        setCurrentView('editor');
+        return;
+      }
+
+      if (job.status === 'pending' || job.status === 'running') {
+        setGlobalError('Este projeto ainda está sendo processado na VPS.');
+        return;
+      }
+
+      if (job.status === 'expired' || job.status === 'deleting') {
+        setGlobalError('Os vídeos deste projeto não estão mais disponíveis.');
+        return;
+      }
+
+      if (job.status === 'failed') {
+        setGlobalError('A renderização deste projeto falhou.');
+        return;
+      }
+
+      setGlobalError('Não foi possível identificar o estado deste projeto.');
+    } catch (error) {
+      setGlobalError(
+        error instanceof Error
+          ? `Falha ao consultar a VPS: ${error.message}`
+          : 'Falha ao consultar a VPS.'
+      );
+    } finally {
+      setRenderMessage(null);
+    }
   };
 
   // Delete draft project from Supabase
