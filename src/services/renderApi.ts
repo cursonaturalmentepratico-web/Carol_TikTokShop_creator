@@ -243,6 +243,20 @@ export const RenderApi = {
     }
   },
 
+  async preview(projectId: string, filename: string): Promise<string> {
+    if (!/^combinacao-\\d{3}\\.mp4$/.test(filename)) {
+      throw new Error('Nome de vídeo inválido.');
+    }
+
+    const response = await authenticatedRequest(
+      `/projects/${projectId}/outputs/${filename}`
+    );
+
+    const blob = await response.blob();
+
+    return URL.createObjectURL(blob);
+  },
+
   async deleteVideos(projectId: string): Promise<void> {
     await authenticatedRequest(
       `/projects/${projectId}/outputs`,

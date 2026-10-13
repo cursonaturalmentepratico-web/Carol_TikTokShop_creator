@@ -150,8 +150,26 @@ export default function App() {
         const outputs = await RenderApi.outputs(project.id);
 
         if (outputs.files.length > 0) {
+          let savedResults: GeneratedCombination[] = [];
+
+          try {
+            const stored = localStorage.getItem(
+              `carol-render-results:${session!.user.id}:${project.id}`
+            );
+            if (stored) {
+              const parsed: unknown = JSON.parse(stored);
+              if (Array.isArray(parsed)) {
+                savedResults = parsed as GeneratedCombination[];
+              }
+            }
+          } catch {
+            // Se o armazenamento estiver indisponível, os MP4 continuam acessíveis.
+          }
+
           setActiveProject({
             ...project,
+            results: savedResults,
+            totalCombinations: outputs.files.length,
             status: 'ready',
             expiresAt: outputs.expiresAt,
           });
@@ -281,6 +299,12 @@ export default function App() {
       });
 
       const outputs = await RenderApi.outputs(project.id);
+
+      // Preserva os detalhes das combinações para futuras visitas.
+      localStorage.setItem(
+        `carol-render-results:${session!.user.id}:${project.id}`,
+        JSON.stringify(matrix)
+      );
 
       if (outputs.files.length === 0) {
         throw new Error('Processamento concluído, mas nenhum vídeo foi encontrado.');
@@ -429,10 +453,35 @@ export default function App() {
           <ResultsView
             project={activeProject}
             onBackToEditor={handleBackToEditor}
-            onPreviewCombination={(combo) => {
-              const hookClip = activeProject.hooks.find((h) => h.id === combo.hookClipId);
-              if (hookClip) {
-                setPreviewClip(hookClip);
+            onPreviewCombination={async (combo) => {
+              const filename = `combinacao-${String(combo.combinationNumber).padStart(3, '0')}.mp4`;
+
+              setGlobalError(null);
+              setRenderMessage('Carregando vídeo final para pré-visualização...');
+
+              try {
+                const url = await RenderApi.preview(activeProject.id, filename);
+
+                setPreviewClip({
+                  id: combo.id,
+                  category: 'hooks',
+                  name: filename,
+                  size: 0,
+                  sizeFormatted: combo.fileSizeFormatted || 'MP4',
+                  duration: combo.estimatedDuration,
+                  durationFormatted: combo.estimatedDurationFormatted,
+                  previewUrl: url,
+                  thumbnailUrl: null,
+                  uploadedAt: new Date().toISOString(),
+                });
+              } catch (error) {
+                setGlobalError(
+                  error instanceof Error
+                    ? error.message
+                    : 'Não foi possível carregar o vídeo.'
+                );
+              } finally {
+                setRenderMessage(null);
               }
             }}
           />
@@ -443,7 +492,12 @@ export default function App() {
       {previewClip && (
         <VideoPreviewModal
           clip={previewClip}
-          onClose={() => setPreviewClip(null)}
+          onClose={() => {
+            if (previewClip?.previewUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(previewClip.previewUrl);
+            }
+            setPreviewClip(null);
+          }}
         />
       )}
 
