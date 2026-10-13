@@ -211,6 +211,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
       </div>
 
       {/* Expiration Countdown Banner (Real 2-hour server calculation) */}
+      {!loadingFiles && combinations.length > 0 && (
+        <>
       <div
         className={`rounded-3xl border p-5 sm:p-6 transition-all ${
           timeRemaining.isExpired
@@ -265,6 +267,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </div>
         </div>
       </div>
+
+        </>
+      )}
 
       {/* Notice Message if clicked */}
       {downloadNotice && (
